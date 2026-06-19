@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: deepstrain-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    autoDeploy: true
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: DEEPSTRAIN_REPLICATE_MODEL
+        value: mmoralesq/deepstrain-segmentation:fcbc867cf4793dd861ba11a7a41d2a012895a8532e32b0202e46287afa69a747
+      - key: REPLICATE_API_TOKEN
+        sync: false

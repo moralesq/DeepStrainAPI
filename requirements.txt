@@ -1,0 +1,5 @@
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+replicate>=1.0.7,<2.0
+nibabel>=5.2,<6.0
+numpy>=1.26,<3.0

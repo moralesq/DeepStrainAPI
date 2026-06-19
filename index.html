@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DeepStrain API</title>
+    <style>
+      :root {
+        --bg: #f3efe6;
+        --ink: #1f2a30;
+        --muted: #65747a;
+        --panel: rgba(255, 255, 255, 0.9);
+        --line: rgba(31, 42, 48, 0.12);
+        --accent: #0f766e;
+        --accent-2: #d97706;
+        --danger: #b45309;
+        --shadow: 0 18px 48px rgba(20, 33, 40, 0.12);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Avenir Next", "Trebuchet MS", "Gill Sans", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 30%),
+          radial-gradient(circle at bottom right, rgba(217, 119, 6, 0.16), transparent 30%),
+          linear-gradient(160deg, #eef4f2 0%, #e7eee9 44%, #f6efe3 100%);
+      }
+
+      .shell {
+        width: min(1100px, calc(100vw - 32px));
+        margin: 28px auto;
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 20px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(8px);
+      }
+
+      .hero,
+      .controls,
+      .status,
+      .results {
+        padding: 24px;
+      }
+
+      .eyebrow {
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        line-height: 0.96;
+      }
+
+      .subtitle,
+      .hint {
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .banner {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(15, 118, 110, 0.08);
+        color: #0f5c56;
+      }
+
+      .dropzone {
+        border: 2px dashed rgba(15, 118, 110, 0.35);
+        border-radius: 22px;
+        padding: 32px 20px;
+        text-align: center;
+        background:
+          linear-gradient(180deg, rgba(15, 118, 110, 0.06), rgba(255, 255, 255, 0.46)),
+          repeating-linear-gradient(
+            -45deg,
+            rgba(15, 118, 110, 0.04) 0 12px,
+            rgba(255, 255, 255, 0.22) 12px 24px
+          );
+        cursor: pointer;
+        transition: transform 140ms ease, border-color 140ms ease;
+      }
+
+      .dropzone.dragover {
+        transform: translateY(-2px);
+        border-color: var(--accent);
+      }
+
+      .dropzone strong {
+        display: block;
+        font-size: 1.15rem;
+        margin-bottom: 8px;
+      }
+
+      .pill {
+        margin-top: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(31, 42, 48, 0.06);
+        font-size: 0.95rem;
+      }
+
+      .buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 14px;
+        padding: 13px 18px;
+        font: inherit;
+        font-weight: 700;
+        color: white;
+        background: linear-gradient(135deg, #0f766e, #115e59);
+        cursor: pointer;
+        box-shadow: 0 10px 24px rgba(15, 118, 110, 0.25);
+        transition: transform 120ms ease, opacity 120ms ease;
+      }
+
+      button.secondary {
+        background: linear-gradient(135deg, #d97706, #b45309);
+        box-shadow: 0 10px 24px rgba(217, 119, 6, 0.24);
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      button:not(:disabled):hover {
+        transform: translateY(-1px);
+      }
+
+      .grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .card {
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(31, 42, 48, 0.05);
+        border: 1px solid rgba(31, 42, 48, 0.08);
+      }
+
+      .label {
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+      }
+
+      .value {
+        margin-top: 6px;
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+
+      .good { color: var(--accent); }
+      .warm { color: var(--accent-2); }
+      .bad { color: var(--danger); }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #112129;
+        color: #dcf6f0;
+        border-radius: 18px;
+        padding: 16px;
+        min-height: 220px;
+        max-height: 420px;
+        overflow: auto;
+        font-family: "SFMono-Regular", "Menlo", "Consolas", monospace;
+        font-size: 0.86rem;
+        line-height: 1.5;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .links a {
+        color: var(--accent);
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .preview {
+        margin-top: 18px;
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(31, 42, 48, 0.05);
+        border: 1px solid rgba(31, 42, 48, 0.08);
+      }
+
+      .preview img {
+        display: block;
+        width: 100%;
+        border-radius: 14px;
+        border: 1px solid rgba(31, 42, 48, 0.08);
+        background: white;
+      }
+
+      .preview-meta {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .url-input {
+        width: 100%;
+        margin-top: 18px;
+        border: 1px solid rgba(31, 42, 48, 0.12);
+        border-radius: 14px;
+        padding: 13px 14px;
+        font: inherit;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.82);
+      }
+
+      .url-input::placeholder {
+        color: var(--muted);
+      }
+
+      @media (max-width: 920px) {
+        .shell { grid-template-columns: 1fr; }
+        .grid { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="panel hero">
+        <div class="eyebrow">Segmentation Report</div>
+        <h1>DeepStrain Segmentation Report</h1>
+        <p class="subtitle">
+          Upload one 4D cine NIfTI locally, submit it to the Replicate segmentation deployment,
+          and watch the request lifecycle from the browser. This website accepts a cine NIfTI, runs segmentation through Replicate, and returns a center-slice contour preview plus downloadable artifacts.
+        </p>
+        <div class="banner">
+          Requires <strong>REPLICATE_API_TOKEN</strong> and either
+          <strong>DEEPSTRAIN_REPLICATE_DEPLOYMENT</strong> or
+          <strong>DEEPSTRAIN_REPLICATE_VERSION</strong> or
+          <strong>DEEPSTRAIN_REPLICATE_MODEL</strong> on the server.
+          Preferred input: <strong>.nii</strong> or <strong>.nii.gz</strong>.
+        </div>
+      </section>
+
+      <section class="panel controls">
+        <div id="dropzone" class="dropzone">
+          <strong>Drop cine NIfTI here</strong>
+          <div class="hint">or click to browse for a .nii / .nii.gz file</div>
+          <input id="fileInput" type="file" accept=".nii,.nii.gz" hidden />
+          <div id="filePill" class="pill" hidden></div>
+        </div>
+
+        <input
+          id="cineUrlInput"
+          class="url-input"
+          type="url"
+          placeholder="Or paste a public S3/HTTPS cine URL"
+        />
+
+        <div class="buttons">
+          <button id="uploadBtn" disabled>Upload File</button>
+          <button id="useUrlBtn">Use URL</button>
+          <button id="analysisBtn" class="secondary" disabled>Run Segmentation</button>
+        </div>
+
+        <div id="jobPill" class="pill" hidden></div>
+        <div id="configBanner" class="banner" style="display: none;"></div>
+      </section>
+
+      <section class="panel status">
+        <div class="grid">
+          <div class="card">
+            <div class="label">Job Status</div>
+            <div id="analysisStatus" class="value">Idle</div>
+          </div>
+          <div class="card">
+            <div class="label">Prediction ID</div>
+            <div id="predictionId" class="value">Not started</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 18px">
+          <div class="label" style="margin-bottom: 8px">Job Log</div>
+          <pre id="analysisLog">No analysis started.</pre>
+        </div>
+      </section>
+
+      <section class="panel results">
+        <div class="label">Artifacts</div>
+        <div id="artifactLinks" class="links"></div>
+        <div id="emptyResults" class="hint" style="margin-top: 14px">
+          Segmentation output and Replicate prediction links will appear here.
+        </div>
+        <div id="previewCard" class="preview" hidden>
+          <div class="label" style="margin-bottom: 10px">Center Slice Contour Preview</div>
+          <img id="previewImage" alt="Center slice with segmentation contours" />
+          <div id="previewMeta" class="preview-meta"></div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      const dropzone = document.getElementById("dropzone");
+      const fileInput = document.getElementById("fileInput");
+      const filePill = document.getElementById("filePill");
+      const cineUrlInput = document.getElementById("cineUrlInput");
+      const jobPill = document.getElementById("jobPill");
+      const configBanner = document.getElementById("configBanner");
+      const uploadBtn = document.getElementById("uploadBtn");
+      const useUrlBtn = document.getElementById("useUrlBtn");
+      const analysisBtn = document.getElementById("analysisBtn");
+      const analysisStatus = document.getElementById("analysisStatus");
+      const predictionId = document.getElementById("predictionId");
+      const analysisLog = document.getElementById("analysisLog");
+      const artifactLinks = document.getElementById("artifactLinks");
+      const emptyResults = document.getElementById("emptyResults");
+      const previewCard = document.getElementById("previewCard");
+      const previewImage = document.getElementById("previewImage");
+      const previewMeta = document.getElementById("previewMeta");
+
+      let selectedFile = null;
+      let currentJob = null;
+      let pollHandle = null;
+      let configOk = false;
+
+      function badgeClass(status) {
+        if (status === "complete") return "good";
+        if (status === "running" || status === "uploaded") return "warm";
+        if (status === "failed") return "bad";
+        return "";
+      }
+
+      function setStatusNode(node, text, status = "") {
+        node.textContent = text;
+        node.className = `value ${badgeClass(status)}`;
+      }
+
+      function setSelectedFile(file) {
+        selectedFile = file;
+        if (!file) {
+          filePill.hidden = true;
+          filePill.textContent = "";
+          uploadBtn.disabled = true;
+          return;
+        }
+        filePill.hidden = false;
+        filePill.textContent = `${file.name} (${Math.round(file.size / 1024 / 1024 * 10) / 10} MB)`;
+        uploadBtn.disabled = !configOk;
+      }
+
+      function renderLinks(job) {
+        artifactLinks.innerHTML = "";
+        const entries = [
+          ["Uploaded cine", job.uploaded_cine_url],
+          ["Hosted cine URL", job.source_url],
+          ["Replicate prediction", job.prediction_url],
+          ["Segmentation output", job.segmentation_url],
+          ["Downloaded segmentation", job.downloaded_segmentation_url],
+        ].filter(([, url]) => Boolean(url));
+
+        emptyResults.style.display = entries.length ? "none" : "block";
+        for (const [label, url] of entries) {
+          const a = document.createElement("a");
+          a.href = url;
+          a.target = "_blank";
+          a.rel = "noreferrer";
+          a.textContent = label;
+          artifactLinks.appendChild(a);
+        }
+      }
+
+      function renderPreview(job) {
+        if (!job.overlay_preview_url) {
+          previewCard.hidden = true;
+          previewImage.removeAttribute("src");
+          previewMeta.textContent = "";
+          return;
+        }
+
+        previewCard.hidden = false;
+        previewImage.src = `${job.overlay_preview_url}?t=${Date.now()}`;
+        if (job.preview_info) {
+          const labels = (job.preview_info.labels || []).join(", ") || "none";
+          const shape = (job.preview_info.shape || []).join(" x ");
+          previewMeta.textContent =
+            `slice z=${job.preview_info.slice_index}, t=${job.preview_info.time_index}, labels=${labels}, cine shape=${shape}`;
+        } else {
+          previewMeta.textContent = "";
+        }
+      }
+
+      function renderJob(job) {
+        currentJob = job;
+        jobPill.hidden = false;
+        jobPill.textContent = `Job ${job.id} · ${job.filename}`;
+        setStatusNode(analysisStatus, job.analysis_status, job.analysis_status);
+        predictionId.textContent = job.prediction_id || "Not started";
+        analysisLog.textContent = job.analysis_log || "No analysis started.";
+        analysisBtn.disabled = !(job.analysis_status === "uploaded" || job.analysis_status === "failed");
+        uploadBtn.disabled = !selectedFile || !configOk;
+        useUrlBtn.disabled = !cineUrlInput.value.trim() || !configOk;
+        renderLinks(job);
+        renderPreview(job);
+
+        const shouldPoll = job.analysis_status === "running";
+        if (shouldPoll && !pollHandle) {
+          pollHandle = window.setInterval(refreshJob, 2000);
+        } else if (!shouldPoll && pollHandle) {
+          window.clearInterval(pollHandle);
+          pollHandle = null;
+        }
+      }
+
+      async function refreshConfig() {
+        const response = await fetch("/api/config");
+        if (!response.ok) return;
+        const config = await response.json();
+        configOk = config.ready;
+        if (config.ready) {
+          configBanner.style.display = "block";
+          configBanner.textContent = `${config.target_kind}: ${config.target}`;
+          uploadBtn.disabled = !selectedFile;
+          useUrlBtn.disabled = !cineUrlInput.value.trim();
+        } else {
+          configBanner.style.display = "block";
+          configBanner.textContent = config.error;
+          uploadBtn.disabled = true;
+          useUrlBtn.disabled = true;
+          analysisBtn.disabled = true;
+        }
+      }
+
+      async function refreshJob() {
+        if (!currentJob) return;
+        const response = await fetch(`/api/jobs/${currentJob.id}`);
+        if (!response.ok) return;
+        renderJob(await response.json());
+      }
+
+      async function uploadFile() {
+        if (!selectedFile) return;
+        const body = new FormData();
+        body.append("file", selectedFile);
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = "Uploading...";
+        const response = await fetch("/api/jobs", { method: "POST", body });
+        uploadBtn.textContent = "Upload File";
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({ error: "Upload failed" }));
+          alert(payload.error || "Upload failed");
+          uploadBtn.disabled = !selectedFile || !configOk;
+          return;
+        }
+        renderJob(await response.json());
+      }
+
+      async function useUrl() {
+        const url = cineUrlInput.value.trim();
+        if (!url) return;
+        useUrlBtn.disabled = true;
+        useUrlBtn.textContent = "Saving URL...";
+        const response = await fetch("/api/jobs/url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        useUrlBtn.textContent = "Use URL";
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({ detail: "URL setup failed" }));
+          alert(payload.detail || "URL setup failed");
+          useUrlBtn.disabled = !configOk || !cineUrlInput.value.trim();
+          return;
+        }
+        renderJob(await response.json());
+      }
+
+      async function startAnalysis() {
+        if (!currentJob) return;
+        analysisBtn.disabled = true;
+        const response = await fetch(`/api/jobs/${currentJob.id}/analysis`, { method: "POST" });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({ error: "Analysis failed to start" }));
+          alert(payload.error || "Analysis failed to start");
+          return;
+        }
+        renderJob(await response.json());
+      }
+
+      dropzone.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", (event) => setSelectedFile(event.target.files[0]));
+      cineUrlInput.addEventListener("input", () => {
+        useUrlBtn.disabled = !configOk || !cineUrlInput.value.trim();
+      });
+      uploadBtn.addEventListener("click", uploadFile);
+      useUrlBtn.addEventListener("click", useUrl);
+      analysisBtn.addEventListener("click", startAnalysis);
+
+      for (const eventName of ["dragenter", "dragover"]) {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropzone.classList.add("dragover");
+        });
+      }
+
+      for (const eventName of ["dragleave", "drop"]) {
+        dropzone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          dropzone.classList.remove("dragover");
+        });
+      }
+
+      dropzone.addEventListener("drop", (event) => {
+        const [file] = event.dataTransfer.files;
+        if (file) setSelectedFile(file);
+      });
+
+      refreshConfig();
+    </script>
+  </body>
+</html>
