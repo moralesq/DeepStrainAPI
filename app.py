@@ -431,6 +431,22 @@ def analysis_worker(job_id: str) -> None:
             append_log(job_id, f"Downloading segmentation to {segmentation_path.name}\n")
             download_file(segmentation_url, segmentation_path)
 
+            cine_img = nib.load(str(cine_path))
+            seg_img = nib.load(str(segmentation_path))
+            append_log(
+                job_id,
+                (
+                    f"Cine header shape: {cine_img.shape}, "
+                    f"dtype={cine_img.get_data_dtype()}\n"
+                ),
+            )
+            append_log(
+                job_id,
+                (
+                    f"Segmentation header shape: {seg_img.shape}, "
+                    f"dtype={seg_img.get_data_dtype()}\n"
+                ),
+            )
             append_log(job_id, "Rendering center-slice contour preview\n")
             preview_info = render_overlay_preview(cine_path, segmentation_path, overlay_path)
             preview_svg = overlay_path.read_text(encoding="utf-8")
