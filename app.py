@@ -215,32 +215,31 @@ def binary_boundary(mask_2d: np.ndarray) -> np.ndarray:
     return mask & ~eroded
 
 
-def choose_preview_indices(cine_data: np.ndarray, seg_data: np.ndarray) -> tuple[int, int]:
-    if seg_data.ndim == 4:
-        seg_time_mask = np.any(seg_data > 0, axis=(0, 1, 2))
-        time_indices = np.flatnonzero(seg_time_mask)
-        time_idx = int(time_indices[len(time_indices) // 2]) if len(time_indices) else 0
-        seg_slice_mask = np.any(seg_data[:, :, :, time_idx] > 0, axis=(0, 1))
+def choose_preview_indices(cine_shape: tuple[int, ...], seg_proxy: Any) -> tuple[int, int]:
+    seg_shape = tuple(int(dim) for dim in seg_proxy.shape)
+    if len(seg_shape) == 4:
+        active_times: list[int] = []
+        for time_idx in range(seg_shape[3]):
+            seg_volume = np.asarray(seg_proxy[:, :, :, time_idx])
+            if np.any(seg_volume > 0):
+                active_times.append(time_idx)
+        time_idx = active_times[len(active_times) // 2] if active_times else 0
+        seg_volume = np.asarray(seg_proxy[:, :, :, time_idx])
     else:
         time_idx = 0
-        seg_slice_mask = np.any(seg_data > 0, axis=(0, 1))
+        seg_volume = np.asarray(seg_proxy[:, :, :])
 
+    seg_slice_mask = np.any(seg_volume > 0, axis=(0, 1))
     slice_indices = np.flatnonzero(seg_slice_mask)
     if len(slice_indices):
         slice_idx = int(slice_indices[len(slice_indices) // 2])
     else:
-        slice_idx = int(seg_data.shape[2] // 2)
+        slice_idx = int(seg_shape[2] // 2)
 
-    if cine_data.ndim == 4 and time_idx >= cine_data.shape[3]:
+    if len(cine_shape) == 4 and time_idx >= cine_shape[3]:
         time_idx = 0
 
     return slice_idx, time_idx
-
-
-def extract_2d_slice(volume: np.ndarray, slice_idx: int, time_idx: int) -> np.ndarray:
-    if volume.ndim == 4:
-        return volume[:, :, slice_idx, time_idx]
-    return volume[:, :, slice_idx]
 
 
 def render_overlay_preview(
@@ -248,21 +247,33 @@ def render_overlay_preview(
     segmentation_path: Path,
     preview_path: Path,
 ) -> dict[str, int | list[int]]:
-    cine_data = nib.load(str(cine_path)).get_fdata()
-    seg_data = nib.load(str(segmentation_path)).get_fdata()
+    cine_img = nib.load(str(cine_path))
+    seg_img = nib.load(str(segmentation_path))
+    cine_shape = tuple(int(dim) for dim in cine_img.shape)
+    seg_shape = tuple(int(dim) for dim in seg_img.shape)
 
-    if cine_data.ndim not in {3, 4}:
-        raise RuntimeError(f"Expected 3D or 4D cine NIfTI, got shape {cine_data.shape}.")
-    if seg_data.ndim not in {3, 4}:
-        raise RuntimeError(f"Expected 3D or 4D segmentation NIfTI, got shape {seg_data.shape}.")
-    if cine_data.shape[:3] != seg_data.shape[:3]:
+    if len(cine_shape) not in {3, 4}:
+        raise RuntimeError(f"Expected 3D or 4D cine NIfTI, got shape {cine_shape}.")
+    if len(seg_shape) not in {3, 4}:
+        raise RuntimeError(f"Expected 3D or 4D segmentation NIfTI, got shape {seg_shape}.")
+    if cine_shape[:3] != seg_shape[:3]:
         raise RuntimeError(
-            f"Cine and segmentation spatial shapes do not match: {cine_data.shape[:3]} vs {seg_data.shape[:3]}."
+            f"Cine and segmentation spatial shapes do not match: {cine_shape[:3]} vs {seg_shape[:3]}."
         )
 
-    slice_idx, time_idx = choose_preview_indices(cine_data, seg_data)
-    cine_slice = extract_2d_slice(cine_data, slice_idx, time_idx)
-    seg_slice = extract_2d_slice(seg_data, slice_idx, time_idx if seg_data.ndim == 4 else 0)
+    seg_proxy = seg_img.dataobj
+    cine_proxy = cine_img.dataobj
+    slice_idx, time_idx = choose_preview_indices(cine_shape, seg_proxy)
+
+    if len(cine_shape) == 4:
+        cine_slice = np.asarray(cine_proxy[:, :, slice_idx, time_idx])
+    else:
+        cine_slice = np.asarray(cine_proxy[:, :, slice_idx])
+
+    if len(seg_shape) == 4:
+        seg_slice = np.asarray(seg_proxy[:, :, slice_idx, time_idx])
+    else:
+        seg_slice = np.asarray(seg_proxy[:, :, slice_idx])
 
     image_uint8 = normalize_to_uint8(cine_slice)
     bmp_base64 = base64.b64encode(grayscale_bmp_bytes(image_uint8)).decode("ascii")
@@ -295,7 +306,7 @@ def render_overlay_preview(
     return {
         "slice_index": int(slice_idx),
         "time_index": int(time_idx),
-        "shape": [int(dim) for dim in cine_data.shape],
+        "shape": [int(dim) for dim in cine_shape],
         "labels": label_values,
     }
 
