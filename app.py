@@ -2,9 +2,11 @@
 
 import base64
 import os
+import struct
 import threading
 import traceback
 import uuid
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -165,38 +167,32 @@ def normalize_to_uint8(image_2d: np.ndarray) -> np.ndarray:
     return (scaled * 255).astype(np.uint8)
 
 
-def grayscale_bmp_bytes(image_2d_uint8: np.ndarray) -> bytes:
+def grayscale_png_bytes(image_2d_uint8: np.ndarray) -> bytes:
     height, width = image_2d_uint8.shape
-    row_size = width * 3
-    padding = (4 - (row_size % 4)) % 4
-    pixel_rows: list[bytes] = []
-    for row in image_2d_uint8[::-1]:
-        rgb = bytearray()
-        for value in row:
-            gray = int(value)
-            rgb.extend((gray, gray, gray))
-        rgb.extend(b"\x00" * padding)
-        pixel_rows.append(bytes(rgb))
+    raw_rows = b"".join(
+        b"\x00" + np.asarray(row, dtype=np.uint8).tobytes()
+        for row in image_2d_uint8
+    )
+    compressed = zlib.compress(raw_rows, level=9)
 
-    pixel_data = b"".join(pixel_rows)
-    file_size = 54 + len(pixel_data)
-    header = bytearray()
-    header.extend(b"BM")
-    header.extend(file_size.to_bytes(4, "little"))
-    header.extend((0).to_bytes(4, "little"))
-    header.extend((54).to_bytes(4, "little"))
-    header.extend((40).to_bytes(4, "little"))
-    header.extend(width.to_bytes(4, "little", signed=True))
-    header.extend(height.to_bytes(4, "little", signed=True))
-    header.extend((1).to_bytes(2, "little"))
-    header.extend((24).to_bytes(2, "little"))
-    header.extend((0).to_bytes(4, "little"))
-    header.extend(len(pixel_data).to_bytes(4, "little"))
-    header.extend((2835).to_bytes(4, "little"))
-    header.extend((2835).to_bytes(4, "little"))
-    header.extend((0).to_bytes(4, "little"))
-    header.extend((0).to_bytes(4, "little"))
-    return bytes(header) + pixel_data
+    def png_chunk(chunk_type: bytes, data: bytes) -> bytes:
+        crc = zlib.crc32(chunk_type)
+        crc = zlib.crc32(data, crc) & 0xFFFFFFFF
+        return (
+            struct.pack(">I", len(data))
+            + chunk_type
+            + data
+            + struct.pack(">I", crc)
+        )
+
+    signature = b"\x89PNG\r\n\x1a\n"
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)
+    return (
+        signature
+        + png_chunk(b"IHDR", ihdr)
+        + png_chunk(b"IDAT", compressed)
+        + png_chunk(b"IEND", b"")
+    )
 
 
 def binary_boundary(mask_2d: np.ndarray) -> np.ndarray:
@@ -276,7 +272,7 @@ def render_overlay_preview(
         seg_slice = np.asarray(seg_proxy[:, :, slice_idx])
 
     image_uint8 = normalize_to_uint8(cine_slice)
-    bmp_base64 = base64.b64encode(grayscale_bmp_bytes(image_uint8)).decode("ascii")
+    png_base64 = base64.b64encode(grayscale_png_bytes(image_uint8)).decode("ascii")
 
     label_values = [int(value) for value in np.unique(seg_slice) if value > 0]
     colors = ["#ff4d4f", "#00c853", "#00bcd4", "#ffb300", "#7c4dff", "#ff6f61"]
@@ -296,7 +292,7 @@ def render_overlay_preview(
         (
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
             f'width="{width}" height="{height}">'
-            f'<image href="data:image/bmp;base64,{bmp_base64}" x="0" y="0" width="{width}" height="{height}" />'
+            f'<image href="data:image/png;base64,{png_base64}" x="0" y="0" width="{width}" height="{height}" />'
             f'<g shape-rendering="crispEdges">{"".join(overlay_parts)}</g>'
             "</svg>"
         ),
